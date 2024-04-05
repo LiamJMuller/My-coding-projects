@@ -1,0 +1,148 @@
+import os
+import cv2
+import numpy as np
+import pandas as pd
+from sklearn.svm import SVC
+import matplotlib.pyplot as plt
+from skimage.filters import sobel
+from skimage.morphology import disk
+from skimage.filters.rank import entropy
+from skimage import data, io, img_as_ubyte
+from sklearn.preprocessing import MinMaxScaler
+from skimage.filters import threshold_multiotsu
+from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
+
+
+# Step a: Image enhancement
+def image_enhancement(img):
+    # Example: You can apply image preprocessing techniques like resizing, normalization, etc.
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # changing image to B&W
+    # cv2.imshow('original', img)
+
+    img = img.reshape(-1)  # reshaping the image
+    # print(img2.shape)
+
+    # Creating sharpening kernel
+    sharp_filter = np.array([[-1, -1, -1],
+                             [-1, 9, -1],
+                             [-1, -1, -1]])
+
+    # applying kernel/s to the input image to get a sharpened image
+    img = cv2.medianBlur(img, 5, sharp_filter)
+    # cv2.imshow('Sharpened image', sharp_img)
+
+    thresholds = threshold_multiotsu(img, classes=3)
+    regions = np.digitize(img, bins=thresholds)
+    output = img_as_ubyte(regions)
+
+
+    """
+    # plt.imsave("images/Otsu_segmented.jpg", output)
+    fig, ax = plt.subplots(nrows=1,             # plotting the output of the Multi-otsu
+                           ncols=3,
+                           figsize=(10, 3.5))
+
+    ax[1].hist(img.ravel(), bins=255)
+    ax[1].set_title('Histogram')
+    for thresh in thresholds:
+        ax[1].axvline(thresh, color='r')
+
+    ax[2].imshow(regions, cmap='Accent')
+    ax[2].set_title('Multi-Otsu result')
+    ax[2].axis('off')
+
+    plt.subplots_adjust()
+    plt.show()"""
+    return img
+
+# Step b: Feature extraction
+def feature_extraction(img):
+    img = entropy(img, disk(1))
+    entropy = img.reshape(-1)
+    df = pd.DataFrame()
+    df['Entropy'] = entropy
+
+    cv2.imshow('Entropy image', img)
+
+    # edge detection
+    edges1 = cv2.Canny(img, 100, 200)
+    sobel_img = sobel(img)
+    sobel_img1 = sobel_img.reshape(-1)
+    df['Sobel'] = sobel_img1
+    features = df
+
+    """cv2.imshow('Can_median', edges1)  # plotting the images for edge detection
+    cv2.imshow('sob_entropy', sobel_img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()"""
+
+# Step c: Feature normalization
+def feature_normalization(features):
+    # Example: Normalize features using StandardScaler
+    scaler = MinMaxScaler()
+    features = scaler.fit_transform(features)
+    return features
+
+# Step d: Train-test split
+def train_test_split_data(features, labels, test_size=0.2):
+    return train_test_split(features, labels, test_size=test_size, random_state=42)
+
+# Step e: Classifier training
+def classifier_training(X_train, y_train):
+    # Example: Train a Support Vector Machine classifier
+    clf = SVC(kernel='linear')
+    clf.fit(X_train, y_train)
+    return clf
+
+# Step f: Classifier testing
+def classifier_testing(clf, X_test):
+    # Example: Predict using the trained classifier
+    y_pred =clf.predict(X_test)
+    return y_pred
+
+# Load and preprocess images
+defective_folder = 'D:\SteamLibrary\Python\itmla3_project_dataset\CONCRETE CRACKS\Defective'
+defectless_folder = 'D:\SteamLibrary\Python\itmla3_project_dataset\CONCRETE CRACKS\Defectless'
+
+
+def load_images_from_folder(folder, label):
+    images = []
+    labels = []
+    count = 0
+    for filename in os.listdir(folder):
+        img_path = os.path.join(folder, filename)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)  # Load image in grayscale
+        if img is not None:
+            img_enh = image_enhancement(img)  # calls the image enhancement function
+            feature_extraction(img_enh)  # calls the feature extraction function
+            feature_normalization(features)
+            images.append(img_enh)
+            labels.append(label)
+            count += 1
+            print(count)
+    # print(count, "labeled as", label)
+    return images, labels
+
+
+defective_img, defective_label = load_images_from_folder(defective_folder, 1)
+defectless_img, defectless_label = load_images_from_folder(defectless_folder, 0)
+
+X = defective_img + defectless_img
+y = defective_label + defectless_label
+
+# Feature normalization
+features = feature_normalization(X)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split_data(features, labels)
+
+# Classifier training
+classifier = classifier_training(X_train, y_train)
+
+# Classifier testing
+predictions = classifier_testing(classifier, X_test)
+
+# Evaluate performance
+accuracy = np.mean(predictions == y_test)
+print("Accuracy:", accuracy)
