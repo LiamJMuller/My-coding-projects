@@ -1,0 +1,160 @@
+import os
+import cv2
+import pickle
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from tensorflow.keras import Sequential
+from sklearn.preprocessing import StandardScaler
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from tensorflow.keras.layers import Dense, Dropout, Activation, flatten, Conv2D, MaxxPooling2D
+
+defective_folder = 'D:\SteamLibrary\Python\itmla3_project_dataset\CONCRETE CRACKS\defective1'
+defectless_folder = 'D:\SteamLibrary\Python\itmla3_project_dataset\CONCRETE CRACKS\defectless1'
+
+# image enhancement functions
+def contrast_stretching(image):
+    # calculate minimum and maximu pixel values
+    min_val = np.min(image)
+    max_val = np.max(image)
+    
+    # conduct contrast stretching
+    stret_image = (image - min_val) / (max_val - min_val) * 255
+    stret_image = stret_image.astype(np.uint8)
+    return stret_image
+
+def image_enhancement(image):
+    # No changes here; your enhancement steps were well thought out.
+    # img_eq = cv2.equalizeHist(image)
+    img_eq = contrast_stretching(image)
+    
+    image_blur = cv2.GaussianBlur(img_eq, (5, 5), 0)
+    # image_blur = cv2.bilateral_filter(img_eq, 9 , 75, 75)
+    # image_blur = cv2.medianBlur(img_eq, kernel_size)
+    return image_blur
+
+
+# feature extraction functions
+def feature_extraction(image, threshold1=100, threshold2=200):
+    # No changes; this depends on your specific application and data.
+    edges = cv2.Canny(image, threshold1=threshold1, threshold2=threshold2)
+    feature_vector = edges.flatten()
+    return feature_vector
+
+
+def hog_fet_extraction(image):
+    hog = cv2.HOGDescriptor()
+    hog_fet = hog.compute(image)
+    
+    fet_vector = hog_fet.flatten()
+    return fet_vector
+
+
+# loading and applying functions to the loaded image
+def load_and_preprocess_images(folder, label):
+    images = []
+    labels = []
+    features = []
+    c = 0
+    for filename in os.listdir(folder):
+        img_path = os.path.join(folder, filename)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)  # Load image in grayscale
+        c =+1
+        if img is not None:
+            resized_img = cv2.resize(img, (200, 200))
+            enh_img = image_enhancement(resized_img)
+            fet_vector = hog_fet_extraction(enh_img)
+            images.append(enh_img)
+            labels.append(label)
+            features.append(fet_vector)
+    #print(c)
+    return features, images, labels
+
+defective_fet,defective_images, defective_labels = load_and_preprocess_images(defective_folder, 1)
+defectless_fet, defectless_images, defectless_labels = load_and_preprocess_images(defectless_folder, 0)
+
+# combinning data
+X = np.array(defective_fet + defectless_fet)
+y = defective_labels + defectless_labels
+
+# normalizing data
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+
+# splitting datasets into training ans testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+# model parameters
+clf = MLPClassifier(hidden_layer_sizes=(100, 50, 25), 
+                    solver='adam', 
+                    activation='relu', 
+                    learning_rate_init=0.01, 
+                    learning_rate='invscaling',
+                    max_iter=200,
+                    random_state=42)
+
+clf.fit(X_train, y_train)
+yhat = clf.predict(X_test)
+
+# printing accuracy of deep learning model
+print("Accuracy score", accuracy_score(yhat, y_test))
+print("Precision score", precision_score(yhat, y_test, average='weighted'))
+print("Recall score", recall_score(yhat, y_test, average='weighted'))
+print("F1 score", f1_score(yhat, y_test))
+
+
+"""# creating a SVC classifier
+clf = SVC(kernel='linear', random_state=42)
+clf.fit(X_train, y_train)
+
+# making predictions for training
+yhat = clf.predict(X_test)
+
+accuracy = accuracy_score(y_test, yhat)
+precision = precision_score(y_test, yhat, average='weighted')
+recall = recall_score(y_test, yhat, average='weighted')
+f1 = f1_score(y_test, yhat, average='weighted')
+
+print(f"SVM classifier metrics:\n")
+print("Accuracy score:", accuracy)
+print("Precision score:", precision)
+print("Recall score:", recall)
+print("F1 score:", f1)"""
+
+"""# creating an MLPClassfier
+mlp = MLPClassifier(hidden_layer_sizes=(100, 50), activation='relu', max_iter=100, random_state=42)
+mlp.fit(X_train, y_train)
+
+yhat = mlp.predict(X_test)
+
+accuracy = accuracy_score(y_test, yhat)
+precision = precision_score(y_test, yhat, average='weighted')
+recall = recall_score(y_test, yhat, average='weighted')
+f1 = f1_score(y_test, yhat, average='weighted')
+
+print(f"MLP classifier metrics:\n")
+print("Accuracy score:", accuracy)
+print("Precision score:", precision)
+print("Recall score:", recall)
+print("F1 score:", f1)"""
+
+"""# Create a figure and axis objects
+fig, axes = plt.subplots(1, 2, figsize=(5, 5))
+ 
+# Display the first image with its label
+axes[0].imshow(defective_images[0], cmap='gray')
+axes[0].set_title(defective_labels[0])
+axes[0].axis('off')
+ 
+# Display the second image with its label
+axes[1].imshow(defectless_images[1], cmap='gray')
+axes[1].set_title(defectless_labels[1])
+axes[1].axis('off')
+ 
+# Adjust layout and display the images
+plt.tight_layout()
+plt.show()
+print("image loading complete")"""
